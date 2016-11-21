@@ -1,0 +1,12 @@
+﻿<?xml version='1.0' encoding='utf-8'?>
+<SettingsFile xmlns="http://schemas.microsoft.com/VisualStudio/2004/01/settings" CurrentProfile="(Default)" GeneratedClassNamespace="SystemTrayApp.Properties" GeneratedClassName="Settings">
+  <Profiles />
+  <Settings>
+    <Setting Name="Keyboard" Type="System.String" Scope="User">
+      <Value Profile="(Default)">ErgoDox EZ</Value>
+    </Setting>
+    <Setting Name="ApplicationDictionary" Type="System.String" Scope="User">
+      <Value Profile="(Default)">[{"Application":"Photoshop", "Layer":0}]</Value>
+    </Setting>
+  </Settings>
+</SettingsFile>

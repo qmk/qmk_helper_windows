@@ -1,0 +1,8 @@
+C:\Users\Jack\Downloads\midi-dot-net-master\midi-dot-net-master\MidiUnitTests\bin\Debug\MidiUnitTests.exe
+C:\Users\Jack\Downloads\midi-dot-net-master\midi-dot-net-master\MidiUnitTests\bin\Debug\MidiUnitTests.pdb
+C:\Users\Jack\Downloads\midi-dot-net-master\midi-dot-net-master\MidiUnitTests\bin\Debug\Midi.dll
+C:\Users\Jack\Downloads\midi-dot-net-master\midi-dot-net-master\MidiUnitTests\bin\Debug\Midi.pdb
+C:\Users\Jack\Downloads\midi-dot-net-master\midi-dot-net-master\MidiUnitTests\bin\Debug\Midi.xml
+C:\Users\Jack\Downloads\midi-dot-net-master\midi-dot-net-master\MidiUnitTests\obj\Debug\MidiUnitTests.csprojResolveAssemblyReference.cache
+C:\Users\Jack\Downloads\midi-dot-net-master\midi-dot-net-master\MidiUnitTests\obj\Debug\MidiUnitTests.exe
+C:\Users\Jack\Downloads\midi-dot-net-master\midi-dot-net-master\MidiUnitTests\obj\Debug\MidiUnitTests.pdb

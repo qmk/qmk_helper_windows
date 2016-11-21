@@ -1,0 +1,6 @@
+C:\Users\Jack\Downloads\midi-dot-net-master\midi-dot-net-master\Midi\bin\Debug\Midi.XML
+C:\Users\Jack\Downloads\midi-dot-net-master\midi-dot-net-master\Midi\bin\Debug\Midi.dll
+C:\Users\Jack\Downloads\midi-dot-net-master\midi-dot-net-master\Midi\bin\Debug\Midi.pdb
+C:\Users\Jack\Downloads\midi-dot-net-master\midi-dot-net-master\Midi\obj\Debug\Midi.csprojResolveAssemblyReference.cache
+C:\Users\Jack\Downloads\midi-dot-net-master\midi-dot-net-master\Midi\obj\Debug\Midi.dll
+C:\Users\Jack\Downloads\midi-dot-net-master\midi-dot-net-master\Midi\obj\Debug\Midi.pdb
