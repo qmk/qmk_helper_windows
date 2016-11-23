@@ -19,8 +19,6 @@ C:\Users\Jack\Downloads\SystemTrayApp\SystemTrayApp\obj\x86\Debug\QMK Helper.app
 C:\Users\Jack\Downloads\SystemTrayApp\SystemTrayApp\obj\x86\Debug\QMK Helper.exe
 C:\Users\Jack\Downloads\SystemTrayApp\SystemTrayApp\obj\x86\Debug\QMK Helper.pdb
 C:\Users\Jack\Downloads\QMK Helper\QMK Helper\bin\Debug\QMK Helper.exe.config
-C:\Users\Jack\Downloads\QMK Helper\QMK Helper\obj\x86\Debug\QMK Helper.exe
-C:\Users\Jack\Downloads\QMK Helper\QMK Helper\obj\x86\Debug\QMK Helper.pdb
 C:\Users\Jack\Downloads\QMK Helper\QMK Helper\bin\Debug\QMK Helper.exe.manifest
 C:\Users\Jack\Downloads\QMK Helper\QMK Helper\bin\Debug\QMK Helper.application
 C:\Users\Jack\Downloads\QMK Helper\QMK Helper\bin\Debug\QMK Helper.exe
@@ -38,3 +36,5 @@ C:\Users\Jack\Downloads\QMK Helper\QMK Helper\obj\x86\Debug\QMK.csproj.GenerateR
 C:\Users\Jack\Downloads\QMK Helper\QMK Helper\obj\x86\Debug\QMK Helper.TrustInfo.xml
 C:\Users\Jack\Downloads\QMK Helper\QMK Helper\obj\x86\Debug\QMK Helper.exe.manifest
 C:\Users\Jack\Downloads\QMK Helper\QMK Helper\obj\x86\Debug\QMK Helper.application
+C:\Users\Jack\Downloads\QMK Helper\QMK Helper\obj\x86\Debug\QMK Helper.exe
+C:\Users\Jack\Downloads\QMK Helper\QMK Helper\obj\x86\Debug\QMK Helper.pdb

@@ -433,6 +433,7 @@
             this.RGBLightCheckBox.TabIndex = 3;
             this.RGBLightCheckBox.Text = "RGB Enabled";
             this.RGBLightCheckBox.UseVisualStyleBackColor = true;
+            this.RGBLightCheckBox.CheckedChanged += new System.EventHandler(this.RGBLightCheckBox_CheckedChanged);
             // 
             // label22
             // 
@@ -454,6 +455,7 @@
             this.RGBLightMode.Name = "RGBLightMode";
             this.RGBLightMode.Size = new System.Drawing.Size(133, 21);
             this.RGBLightMode.TabIndex = 1;
+            this.RGBLightMode.SelectedIndexChanged += new System.EventHandler(this.RGBLightMode_SelectedIndexChanged);
             // 
             // label31
             // 
@@ -610,7 +612,7 @@
             this.toolTip1.SetToolTip(this.checkBox8, "Enable N-Key Rollover");
             this.checkBox8.UseVisualStyleBackColor = true;
             // 
-            // AboutBox
+            // Options
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
@@ -621,7 +623,7 @@
             this.Icon = ((System.Drawing.Icon)(resources.GetObject("$this.Icon")));
             this.MaximizeBox = false;
             this.MinimizeBox = false;
-            this.Name = "AboutBox";
+            this.Name = "Options";
             this.Padding = new System.Windows.Forms.Padding(9);
             this.StartPosition = System.Windows.Forms.FormStartPosition.CenterScreen;
             this.Text = "QMK Helper";

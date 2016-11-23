@@ -54,6 +54,89 @@ namespace QMK {
 
         static public List<string> available_keyboards = new List<string>();
 
+
+        static ushort sysex_encoded_length(ushort decoded_length) {
+            byte remainder = (byte)(decoded_length % 7);
+            if (remainder > 0)
+                return (ushort)((decoded_length / 7) * 8 + remainder + 1);
+            else
+                return (ushort)((decoded_length / 7) * 8);
+        }
+
+        static ushort sysex_decoded_length(ushort encoded_length) {
+            byte remainder =(byte)(encoded_length % 8);
+            if (remainder > 0)
+                return (ushort)((encoded_length / 8) * 7 + remainder - 1);
+            else
+                return (ushort)((encoded_length / 8) * 7);
+        }
+
+        static ushort sysex_encode(byte[] encoded, byte[] source, ushort length){
+            ushort encoded_full = (ushort)(length / 7); //number of full 8 byte sections from 7 bytes of input
+            ushort i, j;
+
+            //fill out the fully encoded sections
+            for(i = 0; i<encoded_full; i++) {
+                ushort encoded_msb_idx = (ushort)(i * 8);
+                ushort input_start_idx = (ushort)(i * 7);
+                encoded[encoded_msb_idx] = 0;
+                for(j = 0; j< 7; j++){
+                    byte current = source[input_start_idx + j];
+                    encoded[encoded_msb_idx] |= (byte)((0x80 & current) >> (1 + j));
+                    encoded[encoded_msb_idx + 1 + j] = (byte)(0x7F & current);
+                }
+            }
+
+            //fill out the rest if there is any more
+            byte remainder = (byte)(length % 7);
+            if (remainder > 0) {
+                ushort encoded_msb_idx = (ushort)(encoded_full * 8);
+                ushort input_start_idx = (ushort)(encoded_full * 7);
+                encoded[encoded_msb_idx] = 0;
+                for(j = 0; j<remainder; j++){
+                    byte current = source[input_start_idx + j];
+                    encoded[encoded_msb_idx] |= (byte)((0x80 & current) >> (1 + j));
+                    encoded[encoded_msb_idx + 1 + j] = (byte)(0x7F & current);
+                }
+                return (ushort)(encoded_msb_idx + remainder + 1);
+            } else {
+                return (ushort)(encoded_full* 8);
+            }
+        }
+
+        static ushort sysex_decode(byte[] decoded, byte[] source, ushort length) {
+            ushort decoded_full = (ushort)(length / 8);
+            ushort i, j;
+
+            if (length < 2)
+                return 0;
+
+            //fill out the fully encoded sections
+            for (i = 0; i < decoded_full; i++) {
+                ushort encoded_msb_idx = (ushort)(i * 8);
+                ushort output_start_index = (ushort)(i * 7);
+                for (j = 0; j < 7; j++) {
+                    decoded[output_start_index + j] = (byte)(0x7F & source[encoded_msb_idx + j + 1]);
+                    decoded[output_start_index + j] |= (byte)((0x80 & (source[encoded_msb_idx] << (1 + j))));
+                }
+            }
+            byte remainder = (byte)(length % 8);
+            if (remainder > 0) {
+                ushort encoded_msb_idx = (ushort)(decoded_full * 8);
+                ushort output_start_index = (ushort)(decoded_full * 7);
+                for (j = 0; j < (remainder - 1); j++) {
+                    decoded[output_start_index + j] = (byte)(0x7F & source[encoded_msb_idx + j + 1]);
+                    decoded[output_start_index + j] |= (byte)((0x80 & (source[encoded_msb_idx] << (1 + j))));
+                }
+                return (ushort)(decoded_full * 7 + remainder - 1);
+            } else {
+                return (ushort)(decoded_full * 7);
+            }
+        }
+
+
+
+
         static public void setupInput() {
             updateInput();
             if (Input != null) {
@@ -68,22 +151,30 @@ namespace QMK {
             }
         }
 
-        static public void setupOutput() {
+        static public void setupOutput(OutputDevice output = null) {
+            if (output == null)
+                output = Output;
             updateOutput();
-            if (!Output.IsOpen) Output.Open();
+            if (!output.IsOpen) output.Open();
         }
 
-        static public void sendBytes(byte[] bytes) {
-            setupOutput();
-            byte[] message = new byte[bytes.Length + 5];
-            Array.Copy(bytes, 0, message, 4, bytes.Length);
+        static public void sendBytes(byte[] bytes, OutputDevice output = null) {
+            if (output == null)
+                output = Output;
+            setupOutput(output);
+            byte[] encoded = new byte[sysex_encoded_length((ushort)bytes.Length)];
+            ushort encoded_length = sysex_encode(encoded, bytes, (ushort)bytes.Length);
+            byte[] message = new byte[encoded_length + 5];
+            Array.Copy(encoded, 0, message, 4, encoded_length);
             message[0] = 0xF0;              // 01: F0 - specifies SysEx 
             message[1] = 0x7E;              // 02: 7E - manufacturer ID
             message[2] = 0x00;              // 03: 00 - device ID (not readable?)
             message[3] = 0x00;              // 04: 00 - model ID
             message[message.Length - 1] = 0xF7; // 0x: F7 - end of transmission
-            Output.SendSysEx(message);
-            Output.Close();
+            output.SendSysEx(message);
+            output.Close();
+
+            System.Diagnostics.Debug.WriteLine("TX: " + BitConverter.ToString(message) + " (" + output.Name + ")");
         }
 
         static public void FindKeyboards() {
@@ -142,10 +233,8 @@ namespace QMK {
 
         static public void Handshake(OutputDevice device) {
             try {
-                System.Diagnostics.Debug.WriteLine("Opening " + device.Name);
-                if (!device.IsOpen)
-                    device.Open();
-                device.SendSysEx(new byte[] { 0xF0, 0x7E, 0x00, 0x00, 0x13, 0x00, 0xF7 });
+                //System.Diagnostics.Debug.WriteLine("Opening " + device.Name);
+                sendBytes(new byte[] { 0x13, 0x00 }, device);
             } catch (Exception e) {
             } finally {
                 if (device.IsOpen)
@@ -153,8 +242,7 @@ namespace QMK {
             }
         }
         static public byte[] prepareHSVChunk(uint hue, uint sat, uint val) {
-            uint chunk = (hue << 16) | (sat << 8) | val;
-            return new byte[] { (byte)((chunk >> 28) & 0x7F), (byte)((chunk >> 21) & 0x7F), (byte)((chunk >> 14) & 0x7F), (byte)((chunk >> 7) & 0x7F), (byte)((chunk) & 0x7F) };
+            return uint_to_bytes((hue << 16) | (sat << 8) | val);
         }
         static public byte[] encode_uint32_chunk(uint data) {
             return new byte[] {
@@ -185,15 +273,25 @@ namespace QMK {
             return (part4 << 7) | part5;
         }
 
+        static uint bytes_to_uint(byte[] bytes, uint index) {
+            return (uint)((bytes[index + 0] << 24) | (bytes[index + 1] << 16) | (bytes[index + 2] << 8) | bytes[index + 3]);
+        }
+
+        static byte[] uint_to_bytes(uint i) {
+            return new byte[] { (byte)((i >> 24) & 0xFF), (byte)((i >> 16) & 0xFF), (byte)((i >> 8) & 0xFF), (byte)((i) & 0xFF) };
+        }
+
         static public void ReceiveSysex(Midi.SysExMessage message) {
-            byte[] data = message.Data;
+            System.Diagnostics.Debug.WriteLine("RX: " + BitConverter.ToString(message.Data) + " (" + message.Device.Name + ")");
+            byte[] data = new byte[message.Data.Length - 5];
+            Array.Copy(message.Data, 4, data, 0, message.Data.Length - 5);
             //foreach (byte thing in data)
             //    System.Diagnostics.Debug.WriteLine("0x{0:X}", thing);
-            uint index = 4;
-            if (data[0] != 0xF0)
-                return;
+            uint index = 0;
+            byte[] decoded = new byte[sysex_decoded_length((ushort)data.Length)];
+            ushort decoded_length = sysex_decode(decoded, data, (ushort)data.Length);
 
-            switch (data[index++]) {
+            switch (decoded[index++]) {
                 case 0x00:
                     System.Diagnostics.Debug.WriteLine(message.Device.Name + " Available");
                     available_keyboards.Add(message.Device.Name);
@@ -202,9 +300,8 @@ namespace QMK {
                     break;
                 case 0x02:
                     if (Program.optionsWindow != null) {
-                        default_layer = decode_uint8_chunk(data, index);
                         for (int i = 0; i < 8; i++) {
-                            if ((default_layer >> i & 1) == 1) {
+                            if ((decoded[index] >> i & 1) == 1) {
                                 Program.optionsWindow.layer_labels[i].BackColor = System.Drawing.Color.FromName("ControlLightLight");
                             } else {
                                 Program.optionsWindow.layer_labels[i].BackColor = System.Drawing.Color.FromName("ControlLight");
@@ -214,21 +311,21 @@ namespace QMK {
                     break;
                 case 0x03:
                     if (Program.optionsWindow != null) {
-                        Program.optionsWindow.UpdateAudio(Convert.ToBoolean(decode_uint8_chunk(data, index)));
+                        Program.optionsWindow.UpdateAudio(Convert.ToBoolean(decoded[index]));
                     }
                     break;
                 case 0x05:
                     uint unicode = decode_uint32_chunk(data, index);
-                    SendKeys.SendWait(char.ConvertFromUtf32((int)unicode).ToString());
+                    SendKeys.SendWait(char.ConvertFromUtf32((int)bytes_to_uint(decoded, index)).ToString());
                     break;
                 case 0x06:
                     if (Program.optionsWindow != null) {
-                        Program.optionsWindow.UpdateBacklight(Convert.ToBoolean(decode_uint8_chunk(data, index)));
+                        Program.optionsWindow.UpdateBacklight(Convert.ToBoolean(decoded[index]));
                     }
                     break;
                 case 0x07:
                     if (Program.optionsWindow != null) {
-                        uint colordata = decode_uint32_chunk(data, index);
+                        uint colordata = bytes_to_uint(decoded, index);
                         //System.Diagnostics.Debug.WriteLine("0x{0:X}", colordata);
                         bool rgblight_enable = Convert.ToBoolean((colordata) & 0x1);
                         Program.optionsWindow.UpdateRGBLight(rgblight_enable);
@@ -246,7 +343,7 @@ namespace QMK {
                     break;
                 case 0x08:
                     if (Program.optionsWindow != null) {
-                        uint keymap_data = decode_uint8_chunk(data, index);
+                        uint keymap_data = decoded[index];
                         //System.Diagnostics.Debug.WriteLine("0x{0:X}", keymap_data);
                         bool swap_control_capslock = ((keymap_data & 0x1) == 0x1);
                         bool capslock_to_control = ((keymap_data >> 1 & 0x1) == 0x1);

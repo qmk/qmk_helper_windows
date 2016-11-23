@@ -252,7 +252,7 @@ namespace QMK {
             if (colorDialog1.ShowDialog() == DialogResult.OK) {
                 button1.BackColor = colorDialog1.Color;
                 byte[] chunk = Keyboard.prepareHSVChunk((uint)button1.BackColor.GetHue(), (uint)(button1.BackColor.GetSaturation() * 255), (uint)(button1.BackColor.GetBrightness() * 255));
-                Keyboard.sendBytes(new byte[] { 0x27, 0x00, chunk[0], chunk[1], chunk[2], chunk[3], chunk[4] });
+                Keyboard.sendBytes(new byte[] { 0x27, 0x00, chunk[0], chunk[1], chunk[2], chunk[3] });
                 if (button1.BackColor.GetBrightness() > 0.5)
                     button1.ForeColor = System.Drawing.Color.Black;
                 else
@@ -287,6 +287,10 @@ namespace QMK {
 
         private void button3_Click(object sender, EventArgs e) {
             Keyboard.FindKeyboards();
+        }
+
+        private void RGBLightCheckBox_CheckedChanged(object sender, EventArgs e) {
+
         }
     }
 }
