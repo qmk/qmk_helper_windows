@@ -4,25 +4,38 @@ using System.Reflection;
 using System.Windows.Forms;
 using Midi;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace QMK {
 
+    public class rgblight {
+        public bool enabled;
+        public byte mode;
+        public ushort hue;
+        public byte sat;
+        public byte val;
+        public byte[] bytes {
+            get {
+                uint dword = ToUInt32();
+                byte[] bytes = new byte[] { (byte)((dword >> 24) & 0xFF), (byte)((dword >> 16) & 0xFF), (byte)((dword >> 8) & 0xFF), (byte)((dword) & 0xFF) };
+                return bytes;
+            }
+        }
+        public rgblight(uint colordata) {
+            //System.Diagnostics.Debug.WriteLine("0x{0:X}", colordata);
+            enabled = Convert.ToBoolean((colordata) & 0x1);
+            mode = (byte)((colordata >> 1) & ((1 << 6) - 1));
+            hue = (ushort)((colordata >> 7) & ((1 << 9) - 1));
+            sat = (byte)((colordata >> 16) & ((1 << 8) - 1));
+            val = (byte)((colordata >> 24) & ((1 << 8) - 1));
+        }
+        public uint ToUInt32() {
+            return (uint)(val << 24) | (uint)(sat << 16) | (uint)(hue << 7) | (uint)(mode << 1) | Convert.ToUInt32(enabled);
+        }
+    }
+
     static class Keyboard {
         [Flags]
-        public enum SYSEX {
-            // out-dated
-            START = 0xF0,
-            END = 0xF7,
-
-            GET = 0x13,
-            HANDSHAKE = 0x00,
-            LAYERS = 0x04,
-
-            LED = 0x27,
-            HSV = 0x00,
-            RGB = 0x01
-
-        }
         public enum RGBLightModes {
             Static = 1,
             Breathing_Slow = 2,
@@ -51,6 +64,9 @@ namespace QMK {
         static public InputDevice Input;
         static public OutputDevice Output;
         static public uint default_layer;
+        static public rgblight rgb_state;
+        static public InputDevice[] inputDevices;
+        static public OutputDevice[] outputDevices;
 
         static public List<string> available_keyboards = new List<string>();
 
@@ -158,12 +174,18 @@ namespace QMK {
             if (!output.IsOpen) output.Open();
         }
 
-        static public void sendBytes(byte[] bytes, OutputDevice output = null) {
+        static public void sendBytes(MT message_type, DT data_type, byte[] bytes, OutputDevice output = null) {
+            if (bytes == null)
+                bytes = new byte[0] { };
             if (output == null)
                 output = Output;
             setupOutput(output);
-            byte[] encoded = new byte[sysex_encoded_length((ushort)bytes.Length)];
-            ushort encoded_length = sysex_encode(encoded, bytes, (ushort)bytes.Length);
+            byte[] precoded = new byte[bytes.Length + 2];
+            precoded[0] = (byte)message_type;
+            precoded[1] = (byte)data_type; 
+            Array.Copy(bytes, 0, precoded, 2, bytes.Length);
+            byte[] encoded = new byte[sysex_encoded_length((ushort)precoded.Length)];
+            ushort encoded_length = sysex_encode(encoded, precoded, (ushort)precoded.Length);
             byte[] message = new byte[encoded_length + 5];
             Array.Copy(encoded, 0, message, 4, encoded_length);
             message[0] = 0xF0;              // 01: F0 - specifies SysEx 
@@ -179,19 +201,40 @@ namespace QMK {
 
         static public void FindKeyboards() {
             available_keyboards.Clear();
-            //InputDevice.UpdateInstalledDevices();
-            //OutputDevice.UpdateInstalledDevices();
+            if (inputDevices != null) 
+                foreach (InputDevice device in inputDevices) {
+                    try {
+                        device.RemoveAllEventHandlers();
+                        if (device.IsReceiving)
+                            device.StopReceiving();
+                        if (device.IsOpen)
+                            device.Close();
+                    } catch (Exception e) {
+
+                    }
+                }
+            InputDevice.UpdateInstalledDevices();
+            OutputDevice.UpdateInstalledDevices();
+            inputDevices = InputDevice.InstalledDevices.ToArray();
             foreach (InputDevice device in InputDevice.InstalledDevices) {
                 if (device != null) {
                     System.Diagnostics.Debug.WriteLine("Listening to " + device.Name);
-                    if (!device.IsOpen)
-                        device.Open();
-                    if (!device.IsReceiving)
-                        device.StartReceiving(null, true);
-                    device.RemoveAllEventHandlers();
-                    device.SysEx += new InputDevice.SysExHandler(ReceiveSysex);
+                    try {
+                        if (!device.IsOpen)
+                            device.Open();
+                        if (!device.IsReceiving)
+                            device.StartReceiving(null, true);
+                        device.RemoveAllEventHandlers();
+                        device.SysEx += new InputDevice.SysExHandler(ReceiveSysex);
+                    } catch (Exception e) {
+
+                    }
                 }
             }
+            outputDevices = OutputDevice.InstalledDevices.ToArray();
+            //foreach (OutputDevice device in outputDevices) {
+
+            //}
             foreach (OutputDevice device in OutputDevice.InstalledDevices) {
                 Handshake(device);
             }
@@ -225,24 +268,25 @@ namespace QMK {
 
         static public void updateOutput() {
             OutputDevice.UpdateInstalledDevices();
-            foreach (OutputDevice device in OutputDevice.InstalledDevices) {
-                if (device.Name == Properties.Settings.Default.Keyboard)
-                    Output = device;
+            try {
+                foreach (OutputDevice device in OutputDevice.InstalledDevices) {
+                    if (device.Name == Properties.Settings.Default.Keyboard)
+                        Output = device;
+                }
+            } catch (Exception e) {
+
             }
         }
 
         static public void Handshake(OutputDevice device) {
             try {
                 //System.Diagnostics.Debug.WriteLine("Opening " + device.Name);
-                sendBytes(new byte[] { 0x13, 0x00 }, device);
+                MT_SET_DATA(DT.HANDSHAKE, null, device);
             } catch (Exception e) {
             } finally {
                 if (device.IsOpen)
                     device.Close();
             }
-        }
-        static public byte[] prepareHSVChunk(uint hue, uint sat, uint val) {
-            return uint_to_bytes((hue << 16) | (sat << 8) | val);
         }
         static public byte[] encode_uint32_chunk(uint data) {
             return new byte[] {
@@ -281,6 +325,42 @@ namespace QMK {
             return new byte[] { (byte)((i >> 24) & 0xFF), (byte)((i >> 16) & 0xFF), (byte)((i >> 8) & 0xFF), (byte)((i) & 0xFF) };
         }
 
+
+        public enum MT {
+            GET_DATA = 0x10, // Get data from keyboard
+            GET_DATA_ACK = 0x11, // returned data to process (ACK)
+            SET_DATA = 0x20, // Set data on keyboard
+            SET_DATA_ACK = 0x21, // returned data to confirm (ACK)
+            SEND_DATA = 0x30, // Sending data/action from keyboard
+            SEND_DATA_ACK = 0x31, // returned data/action confirmation (ACK)
+            EXE_ACTION = 0x40, // executing actions on keyboard
+            EXE_ACTION_ACK = 0x41, // return confirmation/value (ACK)
+            TYPE_ERROR = 0x80 // type not recofgnised (ACK)
+        };
+
+        public enum DT {
+            NONE = 0x00,
+            HANDSHAKE,
+            DEFAULT_LAYER,
+            CURRENT_LAYER,
+            KEYMAP_OPTIONS,
+            BACKLIGHT,
+            RGBLIGHT,
+            UNICODE,
+            DEBUG,
+            AUDIO,
+            QUANTUM_ACTION,
+            KEYBOARD_ACTION,
+            USER_ACTION,
+        };
+
+        static public void MT_SET_DATA(DT data_type, byte[] data = null, OutputDevice device = null) {
+            sendBytes(MT.SET_DATA, data_type, data, device);
+        }
+        static public void MT_GET_DATA(DT data_type, byte[] data = null, OutputDevice device = null) {
+            sendBytes(MT.GET_DATA, data_type, data, device);
+        }
+
         static public void ReceiveSysex(Midi.SysExMessage message) {
             System.Diagnostics.Debug.WriteLine("RX: " + BitConverter.ToString(message.Data) + " (" + message.Device.Name + ")");
             byte[] data = new byte[message.Data.Length - 5];
@@ -291,74 +371,91 @@ namespace QMK {
             byte[] decoded = new byte[sysex_decoded_length((ushort)data.Length)];
             ushort decoded_length = sysex_decode(decoded, data, (ushort)data.Length);
 
-            switch (decoded[index++]) {
-                case 0x00:
-                    System.Diagnostics.Debug.WriteLine(message.Device.Name + " Available");
-                    available_keyboards.Add(message.Device.Name);
-                    updateInput();
-                    updateOutput();
+            switch ((MT)decoded[index++]) {
+                case MT.SET_DATA:
+                case MT.GET_DATA:
                     break;
-                case 0x02:
-                    if (Program.optionsWindow != null) {
-                        for (int i = 0; i < 8; i++) {
-                            if ((decoded[index] >> i & 1) == 1) {
-                                Program.optionsWindow.layer_labels[i].BackColor = System.Drawing.Color.FromName("ControlLightLight");
-                            } else {
-                                Program.optionsWindow.layer_labels[i].BackColor = System.Drawing.Color.FromName("ControlLight");
+                case MT.SET_DATA_ACK:
+                case MT.GET_DATA_ACK:
+                    switch ((DT)decoded[index++]) {
+                        case DT.HANDSHAKE:
+                            System.Diagnostics.Debug.WriteLine(message.Device.Name + " Available");
+                            available_keyboards.Add(message.Device.Name);
+                            updateInput();
+                            updateOutput();
+                            break;
+                        case DT.DEFAULT_LAYER:
+                            if (Program.optionsWindow != null) {
+                                for (int i = 0; i < 8; i++) {
+                                    if ((decoded[index] >> i & 1) == 1) {
+                                        Program.optionsWindow.layer_labels[i].BackColor = System.Drawing.Color.FromName("ControlLightLight");
+                                    } else {
+                                        Program.optionsWindow.layer_labels[i].BackColor = System.Drawing.Color.FromName("ControlLight");
+                                    }
+                                }
                             }
-                        }
-                    }
-                    break;
-                case 0x03:
-                    if (Program.optionsWindow != null) {
-                        Program.optionsWindow.UpdateAudio(Convert.ToBoolean(decoded[index]));
-                    }
-                    break;
-                case 0x05:
-                    uint unicode = decode_uint32_chunk(data, index);
-                    SendKeys.SendWait(char.ConvertFromUtf32((int)bytes_to_uint(decoded, index)).ToString());
-                    break;
-                case 0x06:
-                    if (Program.optionsWindow != null) {
-                        Program.optionsWindow.UpdateBacklight(Convert.ToBoolean(decoded[index]));
-                    }
-                    break;
-                case 0x07:
-                    if (Program.optionsWindow != null) {
-                        uint colordata = bytes_to_uint(decoded, index);
-                        //System.Diagnostics.Debug.WriteLine("0x{0:X}", colordata);
-                        bool rgblight_enable = Convert.ToBoolean((colordata) & 0x1);
-                        Program.optionsWindow.UpdateRGBLight(rgblight_enable);
-                        uint mode = (colordata >> 1) & ((1 << 6) - 1);
-                        Program.optionsWindow.UpdateRGBLightMode(mode);
-                        uint hue = (colordata >> 7) & ((1 << 9) - 1);
-                        uint sat = (colordata >> 16) & ((1 << 8) - 1);
-                        uint val = (colordata >> 24) & ((1 << 8) - 1);
-                        Program.optionsWindow.colorButton.BackColor = ColorFromAhsb(255, hue * 1f, sat / 255.0f, val / 255.0f);
-                        if (Program.optionsWindow.colorButton.BackColor.GetBrightness() > 0.5)
-                            Program.optionsWindow.colorButton.ForeColor = System.Drawing.Color.Black;
-                        else
-                            Program.optionsWindow.colorButton.ForeColor = System.Drawing.Color.White;
-                    }
-                    break;
-                case 0x08:
-                    if (Program.optionsWindow != null) {
-                        uint keymap_data = decoded[index];
-                        //System.Diagnostics.Debug.WriteLine("0x{0:X}", keymap_data);
-                        bool swap_control_capslock = ((keymap_data & 0x1) == 0x1);
-                        bool capslock_to_control = ((keymap_data >> 1 & 0x1) == 0x1);
-                        bool swap_lalt_lgui = ((keymap_data >> 2 & 0x1) == 0x1);
-                        bool swap_ralt_rgui = ((keymap_data >> 3 & 0x1) == 0x1);
-                        bool no_gui = ((keymap_data >> 4 & 0x1) == 0x1);
-                        bool swap_grave_esc = ((keymap_data >> 5 & 0x1) == 0x1);
-                        bool swap_backslash_backspace = ((keymap_data >> 6 & 0x1) == 0x1);
-                        bool nkro = ((keymap_data >> 7 & 0x1) == 0x1);
+                            break;
+                        case DT.AUDIO:
+                            if (Program.optionsWindow != null) {
+                                Program.optionsWindow.UpdateAudio(Convert.ToBoolean(decoded[index]));
+                            }
+                            break;
+                        case DT.BACKLIGHT:
+                            if (Program.optionsWindow != null) {
+                                Program.optionsWindow.UpdateBacklight(Convert.ToBoolean(decoded[index]));
+                            }
+                            break;
+                        case DT.RGBLIGHT:
+                            if (Program.optionsWindow != null) {
+                                uint colordata = bytes_to_uint(decoded, index);
+                                rgb_state = new rgblight(colordata);
+                                Program.optionsWindow.UpdateRGBLight(rgb_state.enabled);
+                                Program.optionsWindow.UpdateRGBLightMode(rgb_state.mode);
+                                Program.optionsWindow.colorButton.BackColor = ColorFromAhsb(255, rgb_state.hue * 1f, rgb_state.sat / 255.0f, rgb_state.val / 255.0f);
+                                if (Program.optionsWindow.colorButton.BackColor.GetBrightness() > 0.5)
+                                    Program.optionsWindow.colorButton.ForeColor = System.Drawing.Color.Black;
+                                else
+                                    Program.optionsWindow.colorButton.ForeColor = System.Drawing.Color.White;
+                            }
+                            break;
+                        case DT.KEYMAP_OPTIONS:
+                            if (Program.optionsWindow != null) {
+                                uint keymap_data = decoded[index];
+                                //System.Diagnostics.Debug.WriteLine("0x{0:X}", keymap_data);
+                                bool swap_control_capslock = ((keymap_data & 0x1) == 0x1);
+                                bool capslock_to_control = ((keymap_data >> 1 & 0x1) == 0x1);
+                                bool swap_lalt_lgui = ((keymap_data >> 2 & 0x1) == 0x1);
+                                bool swap_ralt_rgui = ((keymap_data >> 3 & 0x1) == 0x1);
+                                bool no_gui = ((keymap_data >> 4 & 0x1) == 0x1);
+                                bool swap_grave_esc = ((keymap_data >> 5 & 0x1) == 0x1);
+                                bool swap_backslash_backspace = ((keymap_data >> 6 & 0x1) == 0x1);
+                                bool nkro = ((keymap_data >> 7 & 0x1) == 0x1);
 
-                        for (int i = 0; i < 8; i++) {
-                            Program.optionsWindow.updateKeymapCheckbox(i, (((keymap_data >> i) & 1) == 1));
-                        }
+                                for (int i = 0; i < 8; i++) {
+                                    Program.optionsWindow.updateKeymapCheckbox(i, (((keymap_data >> i) & 1) == 1));
+                                }
+                            }
+                            break;
+
                     }
                     break;
+                case MT.SEND_DATA:
+                    switch((DT)decoded[index++]) {
+                        case DT.UNICODE:
+                            uint unicode = decode_uint32_chunk(data, index);
+                            SendKeys.SendWait(char.ConvertFromUtf32((int)bytes_to_uint(decoded, index)).ToString());
+                            break;
+                    }
+                    break;
+                case MT.SEND_DATA_ACK:
+                    break;
+                case MT.EXE_ACTION:
+                    break;
+                case MT.EXE_ACTION_ACK:
+                    break;
+                case MT.TYPE_ERROR:
+                    break;
+
             }
         }
         public static Color ColorFromAhsb(int a, float h, float s, float b) {

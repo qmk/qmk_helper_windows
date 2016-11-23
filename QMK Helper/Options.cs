@@ -44,8 +44,8 @@ namespace QMK {
             if (Keyboard.available_keyboards.Contains(Properties.Settings.Default.Keyboard))
                 availableKeyboards.SelectedItem = Properties.Settings.Default.Keyboard;
 
-            Keyboard.updateInput();
-            Keyboard.updateOutput();
+            //Keyboard.updateInput();
+            //Keyboard.updateOutput();
             Reinit();
         }
 
@@ -65,10 +65,10 @@ namespace QMK {
                 layer_labels[i].BackColor = System.Drawing.Color.FromName("ControlLight");
             }
 
-            Keyboard.sendBytes(new byte[] { 0x13, 0x02 }); // Get layers
-            Keyboard.sendBytes(new byte[] { 0x13, 0x03 }); // Get layers
-            Keyboard.sendBytes(new byte[] { 0x13, 0x07 }); // Get RGB
-            Keyboard.sendBytes(new byte[] { 0x13, 0x08 }); // Get Keymap Options
+            Keyboard.MT_GET_DATA(Keyboard.DT.DEFAULT_LAYER, null);
+            Keyboard.MT_GET_DATA(Keyboard.DT.CURRENT_LAYER, null);
+            Keyboard.MT_GET_DATA(Keyboard.DT.RGBLIGHT, null);
+            Keyboard.MT_GET_DATA(Keyboard.DT.KEYMAP_OPTIONS, null);
         }
 
         public void updateKeymapCheckbox(int i, bool enabled) {
@@ -208,7 +208,7 @@ namespace QMK {
         }
 
         private void button2_Click(object sender, EventArgs e) {
-            Keyboard.sendBytes(new byte[] { 0x13, 0x04 });
+            Keyboard.MT_GET_DATA(Keyboard.DT.CURRENT_LAYER);
         }
 
         private void label7_Click(object sender, EventArgs e) {
@@ -241,18 +241,19 @@ namespace QMK {
 
         private void RGBLightMode_SelectedIndexChanged(object sender, EventArgs e) {
             ComboBox comboBox = (ComboBox)sender;
-            Keyboard.sendBytes(new byte[] { 0x27, 0x02, (byte)(comboBox.SelectedIndex + 1) });
-        }
-
-        private void label19_Click(object sender, EventArgs e) {
-
+            //if (Keyboard.rgb_state != null) {
+                Keyboard.rgb_state.mode = (byte)(comboBox.SelectedIndex + 1);
+                Keyboard.MT_SET_DATA(Keyboard.DT.RGBLIGHT, Keyboard.rgb_state.bytes);
+            //}
         }
 
         private void button1_Click(object sender, EventArgs e) {
             if (colorDialog1.ShowDialog() == DialogResult.OK) {
                 button1.BackColor = colorDialog1.Color;
-                byte[] chunk = Keyboard.prepareHSVChunk((uint)button1.BackColor.GetHue(), (uint)(button1.BackColor.GetSaturation() * 255), (uint)(button1.BackColor.GetBrightness() * 255));
-                Keyboard.sendBytes(new byte[] { 0x27, 0x00, chunk[0], chunk[1], chunk[2], chunk[3] });
+                Keyboard.rgb_state.hue = (ushort)button1.BackColor.GetHue();
+                Keyboard.rgb_state.sat = (byte)(button1.BackColor.GetSaturation() * 255);
+                Keyboard.rgb_state.val = (byte)(button1.BackColor.GetBrightness() * 255);
+                Keyboard.MT_SET_DATA(Keyboard.DT.RGBLIGHT, Keyboard.rgb_state.bytes);
                 if (button1.BackColor.GetBrightness() > 0.5)
                     button1.ForeColor = System.Drawing.Color.Black;
                 else
@@ -271,9 +272,7 @@ namespace QMK {
                     Keyboard.default_layer ^= (uint)(1 << i);
                 }
             }
-            byte[] chunk = Keyboard.encode_uint8_chunk(Keyboard.default_layer);
-            Keyboard.sendBytes(new byte[] { 0x12, 0x02, chunk[0], chunk[1] });
-            Keyboard.sendBytes(new byte[] { 0x13, 0x02 });
+            Keyboard.MT_SET_DATA(Keyboard.DT.DEFAULT_LAYER, new byte[] { (byte)Keyboard.default_layer });
         }
 
         private void availableKeyboards_SelectedValueChanged(object sender, EventArgs e) {
@@ -290,7 +289,9 @@ namespace QMK {
         }
 
         private void RGBLightCheckBox_CheckedChanged(object sender, EventArgs e) {
-
+            CheckBox box = (CheckBox)sender;
+            Keyboard.rgb_state.enabled = box.Checked;
+            Keyboard.MT_SET_DATA(Keyboard.DT.RGBLIGHT, Keyboard.rgb_state.bytes);
         }
     }
 }

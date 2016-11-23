@@ -455,7 +455,7 @@
             this.RGBLightMode.Name = "RGBLightMode";
             this.RGBLightMode.Size = new System.Drawing.Size(133, 21);
             this.RGBLightMode.TabIndex = 1;
-            this.RGBLightMode.SelectedIndexChanged += new System.EventHandler(this.RGBLightMode_SelectedIndexChanged);
+            this.RGBLightMode.SelectionChangeCommitted += new System.EventHandler(this.RGBLightMode_SelectedIndexChanged);
             // 
             // label31
             // 
